@@ -127,6 +127,20 @@ double CalibrationOffsetParser::get(const std::string name) const
 
 bool CalibrationOffsetParser::getFrame(const std::string name, KDL::Frame& offset) const
 {
+  // Don't bother with following computation if this isn't a calibrated frame.
+  bool has_offset = false;
+  for (size_t i = 0; i < frame_names_.size(); ++i)
+  {
+    if (frame_names_[i] == name)
+    {
+      has_offset = true;
+      break;
+    }
+  }
+
+  if (!has_offset)
+    return false;
+
   offset.p.x(get(std::string(name).append("_x")));
   offset.p.y(get(std::string(name).append("_y")));
   offset.p.z(get(std::string(name).append("_z")));
@@ -158,7 +172,6 @@ bool CalibrationOffsetParser::loadOffsetYAML(const std::string& filename)
       // Remove the ":"
       param.erase(param.size() - 1);
       std::cout << "Loading '" << param << "' with value " << value << std::endl;
-      add(param);
       set(param, value);
     }
   }

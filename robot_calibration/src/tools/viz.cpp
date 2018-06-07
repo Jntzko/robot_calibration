@@ -139,10 +139,22 @@ int main(int argc, char** argv)
   }
 
   // Load initial values for offsets (if any)
+  for (size_t i = 0; i < params.free_params.size(); ++i)
+  {
+    offsets.add(params.free_params[i]);
+  }
+  for (size_t i = 0; i < params.free_frames.size(); ++i)
+  {
+    offsets.addFrame(params.free_frames[i].name,
+                     params.free_frames[i].x,
+                     params.free_frames[i].y,
+                     params.free_frames[i].z,
+                     params.free_frames[i].roll,
+                     params.free_frames[i].pitch,
+                     params.free_frames[i].yaw);
+  }
   for (size_t i = 0; i < params.free_frames_initial_values.size(); ++i)
   {
-    // We aren't actually optimizing, just using offsets to store value
-    offsets.addFrame(params.free_frames_initial_values[i].name, true, true, true, true, true, true);
     if (!offsets.setFrame(params.free_frames_initial_values[i].name,
                           params.free_frames_initial_values[i].x,
                           params.free_frames_initial_values[i].y,

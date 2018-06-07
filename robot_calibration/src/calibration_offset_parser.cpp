@@ -17,6 +17,7 @@
 
 // Author: Michael Ferguson
 
+#include <fstream>
 #include <string>
 #include <map>
 #include <tinyxml.h>
@@ -89,12 +90,14 @@ bool CalibrationOffsetParser::setFrame(
   axis_magnitude_from_rotation(r, a, b, c);
 
   // Set values
-  return set(std::string(name).append("_x"), x) &&
-         set(std::string(name).append("_y"), y) &&
-         set(std::string(name).append("_z"), z) &&
-         set(std::string(name).append("_a"), a) &&
-         set(std::string(name).append("_b"), b) &&
-         set(std::string(name).append("_c"), c);
+  set(std::string(name).append("_x"), x);
+  set(std::string(name).append("_y"), y);
+  set(std::string(name).append("_z"), z);
+  set(std::string(name).append("_a"), a);
+  set(std::string(name).append("_b"), b);
+  set(std::string(name).append("_c"), c);
+
+  return true;
 }
 
 bool CalibrationOffsetParser::initialize(double* free_params)
@@ -124,20 +127,6 @@ double CalibrationOffsetParser::get(const std::string name) const
 
 bool CalibrationOffsetParser::getFrame(const std::string name, KDL::Frame& offset) const
 {
-  // Don't bother with following computation if this isn't a calibrated frame.
-  bool has_offset = false;
-  for (size_t i = 0; i < frame_names_.size(); ++i)
-  {
-    if (frame_names_[i] == name)
-    {
-      has_offset = true;
-      break;
-    }
-  }
- 
-  if (!has_offset)
-    return false;
-
   offset.p.x(get(std::string(name).append("_x")));
   offset.p.y(get(std::string(name).append("_y")));
   offset.p.z(get(std::string(name).append("_z")));
@@ -153,6 +142,28 @@ bool CalibrationOffsetParser::getFrame(const std::string name, KDL::Frame& offse
 int CalibrationOffsetParser::size()
 {
   return parameter_names_.size();
+}
+
+bool CalibrationOffsetParser::loadOffsetYAML(const std::string& filename)
+{
+  std::string line;
+  std::ifstream f(filename);
+  while (std::getline(f, line))
+  {
+    std::istringstream str(line);
+    std::string param;
+    double value;
+    if (str >> param >> value)
+    {
+      // Remove the ":"
+      param.erase(param.size() - 1);
+      std::cout << "Loading '" << param << "' with value " << value << std::endl;
+      add(param);
+      set(param, value);
+    }
+  }
+  f.close();
+  return true;
 }
 
 std::string CalibrationOffsetParser::getOffsetYAML()

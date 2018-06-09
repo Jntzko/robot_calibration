@@ -5,15 +5,6 @@ if (CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 endif()
 
-option(TEST_COVERAGE "Turn on coverage testing" OFF)
-if(TEST_COVERAGE)
-  message(STATUS "Using TEST_COVERAGE: ${TEST_COVERAGE}")
-  set(CMAKE_BUILD_TYPE "Debug")
-  set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules)
-  include(CodeCoverage)
-  APPEND_COVERAGE_COMPILER_FLAGS()
-endif()
-
 find_package(Boost REQUIRED system thread)
 
 find_library(tinyxml_library tinyxml)
@@ -36,6 +27,7 @@ find_package(catkin REQUIRED
     cv_bridge
     geometry_msgs
     kdl_parser
+    lcov_coverage
     moveit_msgs
     nav_msgs
     pluginlib
@@ -75,6 +67,11 @@ catkin_package(
   LIBRARIES
     robot_calibration
 )
+
+if(ENABLE_COVERAGE_TESTING)
+  include(LcovCoverage)
+  APPEND_COVERAGE_COMPILER_FLAGS()
+endif()
 
 include_directories(include ${Boost_INCLUDE_DIRS}
                             ${catkin_INCLUDE_DIRS}

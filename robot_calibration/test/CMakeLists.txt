@@ -61,4 +61,11 @@ add_rostest(optimization_param_tests.test)
 add_rostest(error_block_tests.test)
 add_rostest(error_block_tests2.test)
 
+if(TEST_COVERAGE)
+  setup_target_for_coverage(
+    NAME ${PROJECT_NAME}_coverage
+    DEPENDS tests
+  )
+endif()
+
 endif()  # if CATKIN_ENABLE_TESTING

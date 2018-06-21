@@ -311,7 +311,7 @@ int Optimizer::optimize(OptimizationParams& params,
   summary_.reset(new ceres::Solver::Summary());
   ceres::Solve(options, problem, summary_.get());
   if (progress_to_stdout)
-    std::cout << "\n" << summary_->BriefReport() << std::endl;
+    std::cout << "\n" << summary_->FullReport() << std::endl;
 
   // Save some status
   num_params_ = problem->NumParameters();

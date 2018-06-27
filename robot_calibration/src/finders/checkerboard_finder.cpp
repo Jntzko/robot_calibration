@@ -21,6 +21,11 @@
 #include <robot_calibration/capture/checkerboard_finder.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
 
+#include <urdf/model.h>
+#include <kdl_parser/kdl_parser.hpp>
+
+#include <tf/tf.h>
+
 PLUGINLIB_EXPORT_CLASS(robot_calibration::CheckerboardFinder, robot_calibration::FeatureFinder)
 
 namespace robot_calibration
@@ -65,6 +70,9 @@ bool CheckerboardFinder::init(const std::string& name,
   // Publish where checkerboard points were seen
   publisher_ = nh.advertise<sensor_msgs::PointCloud2>(getName() + "_points", 10);
 
+  initMarker(nh);
+  joint_states_sub_ = nh.subscribe("/joint_states", 1,&CheckerboardFinder::jointStatesCallback, this); 
+
   // Setup to get camera depth info
   if (!depth_camera_manager_.init(nh))
   {
@@ -73,6 +81,11 @@ bool CheckerboardFinder::init(const std::string& name,
   }
 
   return true;
+}
+
+void CheckerboardFinder::jointStatesCallback(const sensor_msgs::JointState &msg)
+{
+  current_js_ = msg;
 }
 
 void CheckerboardFinder::cameraCallback(const sensor_msgs::PointCloud2& cloud)
@@ -242,6 +255,10 @@ bool CheckerboardFinder::findInternal(robot_calibration_msgs::CalibrationData * 
       msg->observations[idx_cam].cloud = cloud_;
     }
 
+    msg->joint_states = current_js_;
+
+    visualizeMarker(*msg);
+
     // Publish results
     publisher_.publish(cloud);
 
@@ -250,6 +267,168 @@ bool CheckerboardFinder::findInternal(robot_calibration_msgs::CalibrationData * 
   }
 
   return false;
+}
+
+void CheckerboardFinder::initMarker(ros::NodeHandle &nh) {
+  ros::NodeHandle pnh("~");
+  params_.LoadFromROS(pnh);
+  ROS_WARN_STREAM("Publishing markers in " << params_.base_link << " frame.");
+
+  marker_publisher_ = nh.advertise<visualization_msgs::MarkerArray>("marker",10);
+  // Index 0 is white -- used for first points
+  std_msgs::ColorRGBA color;
+  color.r = 1.0;
+  color.b = 1.0;
+  color.g = 1.0;
+  color.a = 1.0;
+  model_colors_.push_back(color);
+  // Red
+  color.r = 1;
+  color.g = 0;
+  color.b = 0;
+  color.a = 1;
+  model_colors_.push_back(color);
+  // Green
+  color.r = 0;
+  color.g = 1;
+  color.b = 0;
+  color.a = 1;
+  model_colors_.push_back(color);
+  // Green
+  color.r = 0;
+  color.g = 0;
+  color.b = 1;
+  color.a = 1;
+  model_colors_.push_back(color);
+
+  std::string str;
+  if (!nh.param<std::string>("/robot_description", str, "asd"))
+  {
+    ROS_ERROR("No robot description");
+    return;
+  }
+
+  // Load KDL from URDF
+  urdf::Model model;
+  KDL::Tree tree;
+  if (!model.initString(str))
+  {
+    ROS_FATAL("Failed to parse URDF.");
+  }
+  if (!kdl_parser::treeFromUrdfModel(model, tree))
+  {
+    ROS_FATAL("Failed to construct KDL tree");
+  }
+
+  // Create models for reprojection
+//  std::vector<std::string> model_names;
+  for (size_t i = 0; i < params_.models.size(); ++i)
+  {
+    if (params_.models[i].type == "chain")
+    {
+      robot_calibration::ChainModel* model = new robot_calibration::ChainModel(params_.models[i].name, tree, params_.base_link, params_.models[i].params["frame"]);
+      models_[params_.models[i].name] = model;
+//      model_names.push_back(params_.models[i].name);
+    }
+    else
+    {
+      // ERROR unknown
+    }
+  }
+
+  // Load initial values for offsets (if any)
+  for (size_t i = 0; i < params_.free_params.size(); ++i)
+  {
+    offsets_.add(params_.free_params[i]);
+  }
+  for (size_t i = 0; i < params_.free_frames.size(); ++i)
+  {
+    offsets_.addFrame(params_.free_frames[i].name,
+                     params_.free_frames[i].x,
+                     params_.free_frames[i].y,
+                     params_.free_frames[i].z,
+                     params_.free_frames[i].roll,
+                     params_.free_frames[i].pitch,
+                     params_.free_frames[i].yaw);
+  }
+  for (size_t i = 0; i < params_.free_frames_initial_values.size(); ++i)
+  {
+    if (!offsets_.setFrame(params_.free_frames_initial_values[i].name,
+                          params_.free_frames_initial_values[i].x,
+                          params_.free_frames_initial_values[i].y,
+                          params_.free_frames_initial_values[i].z,
+                          params_.free_frames_initial_values[i].roll,
+                          params_.free_frames_initial_values[i].pitch,
+                          params_.free_frames_initial_values[i].yaw))
+    {
+      ROS_ERROR_STREAM("Error setting initial value for " <<
+                       params_.free_frames_initial_values[i].name);
+    }
+    ROS_ERROR_STREAM(params_.free_frames_initial_values[i].x << "  " << params_.free_frames_initial_values[i].y << "   "  << params_.free_frames_initial_values[i].z);
+  }
+}
+
+void CheckerboardFinder::visualizeMarker(robot_calibration_msgs::CalibrationData msg) {
+
+  // Publish a marker array
+  visualization_msgs::MarkerArray marker_array;
+  for(size_t i = 0; i < msg.observations.size(); ++i)
+  {
+    visualization_msgs::Marker marker;
+    for (size_t j = 0; j < params_.models.size(); ++j)
+    {
+      if (msg.observations[i].sensor_name == params_.models[j].name)
+        marker.header.frame_id = static_cast<std::string>(params_.models[j].params["frame"]);
+    }
+    marker.header.stamp = ros::Time::now();
+    marker.ns = msg.observations[i].sensor_name;
+    marker.id = i;
+    marker.type = marker.SPHERE_LIST;
+    marker.scale.x = 0.005;
+    marker.scale.y = 0.005;
+    marker.scale.z = 0.005;
+    marker.points.push_back(msg.observations[i].features[0].point);
+    marker.colors.push_back(model_colors_[0]);
+    for (size_t p = 1; p < msg.observations[i].features.size(); ++p)
+    {
+      marker.points.push_back(msg.observations[i].features[p].point);
+      marker.colors.push_back(model_colors_[i+1]);
+    }
+    if (params_.free_frames_initial_values.size() > 0 && msg.observations[i].sensor_name == "left_arm") {
+      marker.pose.position.x = params_.free_frames_initial_values[0].x;
+      marker.pose.position.y = params_.free_frames_initial_values[0].y;
+      marker.pose.position.z = params_.free_frames_initial_values[0].z;
+      marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(params_.free_frames_initial_values[0].roll,params_.free_frames_initial_values[0].pitch, params_.free_frames_initial_values[0].yaw);
+    }
+    marker_array.markers.push_back(marker);
+  }
+
+  // Visualization as in the viz.cpp
+  // Project through model
+  std::vector<geometry_msgs::PointStamped> points;
+  points = models_["left_arm"]->project(msg, offsets_);
+
+  // Convert into marker
+  visualization_msgs::Marker ms;
+  ms.header.frame_id = params_.base_link;
+  ms.header.stamp = ros::Time::now();
+  ms.ns = "left_arm_2";
+  ms.id = 2;
+  ms.type = ms.SPHERE_LIST;
+  ms.scale.x = 0.005;
+  ms.scale.y = 0.005;
+  ms.scale.z = 0.005;
+  ms.points.push_back(points[0].point);
+  ms.colors.push_back(model_colors_[0]);
+  for (size_t p = 1; p < points.size(); ++p)
+  {
+    ms.points.push_back(points[p].point);
+    ms.colors.push_back(model_colors_[3]);
+  }
+  marker_array.markers.push_back(ms);
+
+
+  marker_publisher_.publish(marker_array);
 }
 
 }  // namespace robot_calibration

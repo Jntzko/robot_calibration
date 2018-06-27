@@ -29,6 +29,12 @@
 #include <opencv2/calib3d/calib3d.hpp>
 #include <cv_bridge/cv_bridge.h>
 
+#include <visualization_msgs/MarkerArray.h>
+#include <robot_calibration/ceres/optimization_params.h>
+
+#include <robot_calibration/models/chain.h>
+#include <robot_calibration/calibration_offset_parser.h>
+
 namespace robot_calibration
 {
 
@@ -67,6 +73,17 @@ private:
 
   std::string camera_sensor_name_;
   std::string chain_sensor_name_;
+
+  void visualizeMarker(robot_calibration_msgs::CalibrationData msg);
+  void initMarker(ros::NodeHandle &nh);
+  robot_calibration::OptimizationParams params_;
+  ros::Publisher marker_publisher_;
+  std::vector<std_msgs::ColorRGBA> model_colors_;
+  robot_calibration::CalibrationOffsetParser offsets_;
+  std::map<std::string, robot_calibration::ChainModel*> models_;
+  ros::Subscriber joint_states_sub_;
+  void jointStatesCallback(const sensor_msgs::JointState & msg);
+  sensor_msgs::JointState current_js_;
 };
 
 }  // namespace robot_calibration

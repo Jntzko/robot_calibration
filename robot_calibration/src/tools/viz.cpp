@@ -74,7 +74,7 @@ int main(int argc, char** argv)
   robot_calibration::OptimizationParams params;
   robot_calibration::CalibrationOffsetParser offsets;
   params.LoadFromROS(nh);
-  ROS_INFO_STREAM("Publishing markers in " << params.base_link << " frame.");
+  ROS_WARN_STREAM("Publishing markers in " << params.base_link << " frame.");
 
   // Create models for reprojection
   std::map<std::string, robot_calibration::ChainModel*> models;

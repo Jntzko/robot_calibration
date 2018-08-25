@@ -23,6 +23,7 @@ find_package(OpenCV REQUIRED)
 find_package(catkin REQUIRED
   COMPONENTS
     actionlib
+    apriltags2_ros
     camera_calibration_parsers
     cv_bridge
     geometry_msgs
@@ -46,6 +47,7 @@ catkin_package(
     include
   CATKIN_DEPENDS
     actionlib
+    apriltags2_ros
     camera_calibration_parsers
     cv_bridge
     geometry_msgs
@@ -101,6 +103,7 @@ add_dependencies(robot_calibration robot_calibration_msgs_generate_messages_cpp)
 
 add_library(robot_calibration_feature_finders src/finders/checkerboard_finder.cpp
                                               src/finders/led_finder.cpp
+                                              src/finders/apriltags2_finder.cpp
                                               src/finders/plane_finder.cpp)
 target_link_libraries(robot_calibration_feature_finders robot_calibration
                                                         ${Boost_LIBRARIES}

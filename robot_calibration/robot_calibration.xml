@@ -18,4 +18,10 @@
     <description>Feature finder that detects points corresponding to planes.</description>
   </class>
 
+  <class name="robot_calibration/AprilTags2Finder"
+         type="robot_calibration::AprilTags2Finder"
+         base_class_type="robot_calibration::FeatureFinder">
+    <description>Feature finder that detects apriltags</description>
+  </class>
+
 </library>

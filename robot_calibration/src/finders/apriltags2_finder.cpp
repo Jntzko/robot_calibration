@@ -49,11 +49,11 @@ bool AprilTags2Finder::init(const std::string& name, ros::NodeHandle& nh)
                              &AprilTags2Finder::cameraCallback,
                              this);
 
-  // Apriltag config
-  nh.param<int>("id", tag_id_, -1);
-  nh.param<double>("size", tag_size_, 1);
-  ROS_ERROR_STREAM(tag_id_ << " +++ " << tag_size_);
-
+  // Get Standalone tag ids and sizes
+  XmlRpc::XmlRpcValue standalone_tag_descriptions;
+  if(nh.getParam("standalone_tags", standalone_tag_descriptions)) {
+    tags_ = tag_detector_->parseStandaloneTags(standalone_tag_descriptions);
+  }
 
   // Should we include debug image/cloud in observations
   nh.param<bool>("debug", output_debug_, false);
@@ -136,92 +136,86 @@ bool AprilTags2Finder::find(robot_calibration_msgs::CalibrationData * msg)
   *camera_info_ptr = depth_camera_manager_.getDepthCameraInfo().camera_info;
   apriltags2_ros::AprilTagDetectionArray tag_detections =  tag_detector_->detectTags(cv_image_ptr, camera_info_ptr);
 
-  bool found = false;
-
-  apriltags2_ros::AprilTagDetection tag;
-  for (size_t i=0; i<tag_detections.detections.size(); i++)
+  if (tag_detections.detections.size() > 0)
   {
-    if (tag_detections.detections[i].id[0] == tag_id_)
+    apriltags2_ros::AprilTagDetection tag;
+    for (size_t i=0; i<tag_detections.detections.size(); i++)
     {
       tag = tag_detections.detections[i];
-      found = true;
-      break;
+      if (tags_.find(tag.id[0]) != tags_.end())
+      {
+        ROS_INFO_STREAM("Found AprilTag with id: " << tag.id[0]);
+
+        // We have just a point in observation, so use corners and origin of AprilTag
+        std::vector<tf::Vector3> points;
+        points.push_back(tf::Vector3(0,0,0));
+        double size = tags_.find(tag.id[0])->second.size();
+        points.push_back(tf::Vector3(size/2*1, size/2*1, 0));
+        points.push_back(tf::Vector3(size/2*-1, size/2*1, 0));
+        points.push_back(tf::Vector3(size/2*1, size/2*-1, 0));
+        points.push_back(tf::Vector3(size/2*-1, size/2*-1, 0));
+
+        // Create PointCloud2 to publish
+        sensor_msgs::PointCloud2 cloud;
+        cloud.width = 0;
+        cloud.height = 0;
+        cloud.header.stamp = ros::Time::now();
+        cloud.header.frame_id = image_.header.frame_id;
+        sensor_msgs::PointCloud2Modifier cloud_mod(cloud);
+        cloud_mod.setPointCloud2FieldsByString(1, "xyz");
+        cloud_mod.resize(points.size());
+        sensor_msgs::PointCloud2Iterator<float> iter_cloud(cloud, "x");
+
+        // Set msg size
+        int idx_cam = msg->observations.size() + 0;
+        int idx_chain = msg->observations.size() + 1;
+        msg->observations.resize(msg->observations.size() + 2);
+        msg->observations[idx_cam].sensor_name = camera_sensor_name_;
+        msg->observations[idx_chain].sensor_name = chain_sensor_name_;
+
+        msg->observations[idx_cam].features.resize(points.size());
+        msg->observations[idx_chain].features.resize(points.size());
+
+        // Fill in the headers
+        rgbd.header = image_.header;
+
+        // Fill in message
+        for (size_t i = 0; i < points.size(); ++i)
+        {
+          std::stringstream out;
+          out << "tag_" << tag.id[0];
+          world.header.frame_id = out.str();
+
+          // Point in relation to the chain
+          // Origin
+          world.point.x = points[i].getX();
+          world.point.y = points[i].getY();
+
+          // Point in relation to the camera
+          // Get 3d point
+          tf::Quaternion q;
+          tf::quaternionMsgToTF(tag.pose.pose.pose.orientation, q);
+          tf::Vector3 point = tf::quatRotate(q, points[i]);
+
+          rgbd.point.x = point.getX() + tag.pose.pose.pose.position.x;
+          rgbd.point.y = point.getY() + tag.pose.pose.pose.position.y;
+          rgbd.point.z = point.getZ() + tag.pose.pose.pose.position.z;
+
+          msg->observations[idx_cam].features[i] = rgbd;
+          msg->observations[idx_cam].ext_camera_info = depth_camera_manager_.getDepthCameraInfo();
+          msg->observations[idx_chain].features[i] = world;
+
+          // Visualize
+          iter_cloud[0] = rgbd.point.x;
+          iter_cloud[1] = rgbd.point.y;
+          iter_cloud[2] = rgbd.point.z;
+          ++iter_cloud;
+        }
+
+        // Publish results
+        publisher_.publish(cloud);
+      }
     }
-  }
-
-  // Find apriltag
-  if (found)
-  {
-    ROS_INFO("Found the AprilTag");
-
-    // We have just a point in observation, so use corners and origin of AprilTag
-    std::vector<tf::Vector3> points;
-    points.push_back(tf::Vector3(0,0,0));
-    points.push_back(tf::Vector3(tag_size_/2*1, tag_size_/2*1, 0));
-    points.push_back(tf::Vector3(tag_size_/2*-1, tag_size_/2*1, 0));
-    points.push_back(tf::Vector3(tag_size_/2*1, tag_size_/2*-1, 0));
-    points.push_back(tf::Vector3(tag_size_/2*-1, tag_size_/2*-1, 0));
-    
-    // Create PointCloud2 to publish
-    sensor_msgs::PointCloud2 cloud;
-    cloud.width = 0;
-    cloud.height = 0;
-    cloud.header.stamp = ros::Time::now();
-    cloud.header.frame_id = image_.header.frame_id;
-    sensor_msgs::PointCloud2Modifier cloud_mod(cloud);
-    cloud_mod.setPointCloud2FieldsByString(1, "xyz");
-    cloud_mod.resize(points.size());
-    sensor_msgs::PointCloud2Iterator<float> iter_cloud(cloud, "x");
-
-    // Set msg size
-    int idx_cam = msg->observations.size() + 0;
-    int idx_chain = msg->observations.size() + 1;
-    msg->observations.resize(msg->observations.size() + 2);
-    msg->observations[idx_cam].sensor_name = camera_sensor_name_;
-    msg->observations[idx_chain].sensor_name = chain_sensor_name_;
-         
-    msg->observations[idx_cam].features.resize(points.size());
-    msg->observations[idx_chain].features.resize(points.size());
-
-    // Fill in the headers
-    rgbd.header = image_.header;
-
-    // Fill in message
-    for (size_t i = 0; i < points.size(); ++i)
-    {
-      std::stringstream out;
-      out << "tag_" << tag.id[0];
-      world.header.frame_id = out.str();
-
-      // Point in relation to the chain
-      // Origin
-      world.point.x = points[i].getX();
-      world.point.y = points[i].getY();
-
-      // Point in relation to the camera
-      // Get 3d point
-      tf::Quaternion q;
-      tf::quaternionMsgToTF(tag.pose.pose.pose.orientation, q);
-      tf::Vector3 point = tf::quatRotate(q, points[i]);
-
-      rgbd.point.x = point.getX() + tag.pose.pose.pose.position.x;
-      rgbd.point.y = point.getY() + tag.pose.pose.pose.position.y;
-      rgbd.point.z = point.getZ() + tag.pose.pose.pose.position.z;
-
-      msg->observations[idx_cam].features[i] = rgbd;
-      msg->observations[idx_cam].ext_camera_info = depth_camera_manager_.getDepthCameraInfo();
-      msg->observations[idx_chain].features[i] = world;
-
-      // Visualize
-      iter_cloud[0] = rgbd.point.x;
-      iter_cloud[1] = rgbd.point.y;
-      iter_cloud[2] = rgbd.point.z;
-      ++iter_cloud;
-    }
-
-    // Publish results
-    publisher_.publish(cloud);
-
     // Found all points
     return true;
   }

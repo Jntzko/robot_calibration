@@ -60,8 +60,7 @@ private:
   /*
    * ROS Parameters
    */
-  int tag_id_;          /// Id of AprilTag
-  double tag_size_;        /// Size of AprilTag
+  std::map<int, apriltags2_ros::StandaloneTagDescription> tags_;
 
   bool output_debug_;   /// Should we output debug image/cloud?
 

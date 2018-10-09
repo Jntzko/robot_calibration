@@ -148,11 +148,13 @@ bool AprilTags2Finder::find(robot_calibration_msgs::CalibrationData * msg)
 
         // We have just a point in observation, so use corners and origin of AprilTag
         std::vector<tf::Vector3> points;
-        points.push_back(tf::Vector3(0,0,0));
         double size = tags_.find(tag.id[0])->second.size();
         points.push_back(tf::Vector3(size/2*1, size/2*1, 0));
+        points.push_back(tf::Vector3(0, size/2*1, 0));
         points.push_back(tf::Vector3(size/2*-1, size/2*1, 0));
+        points.push_back(tf::Vector3(0,0,0));
         points.push_back(tf::Vector3(size/2*1, size/2*-1, 0));
+        points.push_back(tf::Vector3(0, size/2*-1, 0));
         points.push_back(tf::Vector3(size/2*-1, size/2*-1, 0));
 
         // Create PointCloud2 to publish

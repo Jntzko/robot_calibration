@@ -147,15 +147,18 @@ bool AprilTags2Finder::find(robot_calibration_msgs::CalibrationData * msg)
         ROS_INFO_STREAM("Found AprilTag with id: " << tag.id[0]);
 
         // We have just a point in observation, so use corners and origin of AprilTag
-        std::vector<tf::Vector3> points;
         double size = tags_.find(tag.id[0])->second.size();
-        points.push_back(tf::Vector3(size/2*1, size/2*1, 0));
-        points.push_back(tf::Vector3(0, size/2*1, 0));
-        points.push_back(tf::Vector3(size/2*-1, size/2*1, 0));
-        points.push_back(tf::Vector3(0,0,0));
-        points.push_back(tf::Vector3(size/2*1, size/2*-1, 0));
-        points.push_back(tf::Vector3(0, size/2*-1, 0));
-        points.push_back(tf::Vector3(size/2*-1, size/2*-1, 0));
+
+        std::vector<tf::Vector3> points;
+        for (size_t j=0; j<5; j++)
+        {
+          for (size_t k=0; k<4; k++)
+          {
+            float x = j*size/5;
+            float y = k*size/4;
+            points.push_back(tf::Vector3(x-size/2, y-size/2, 0));
+          }
+        }
 
         // Create PointCloud2 to publish
         sensor_msgs::PointCloud2 cloud;

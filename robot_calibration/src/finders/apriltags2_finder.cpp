@@ -154,8 +154,8 @@ bool AprilTags2Finder::find(robot_calibration_msgs::CalibrationData * msg)
         {
           for (size_t k=0; k<4; k++)
           {
-            float x = j*size/5;
-            float y = k*size/4;
+            float x = j*size/4;
+            float y = k*size/3;
             points.push_back(tf::Vector3(x-size/2, y-size/2, 0));
           }
         }

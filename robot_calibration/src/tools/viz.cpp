@@ -210,7 +210,10 @@ int main(int argc, char** argv)
       for (size_t p = 1; p < points.size(); ++p)
       {
         msg.points.push_back(points[p].point);
-        msg.colors.push_back(model_colors[m+1]);
+        if(p == 1)
+          msg.colors.push_back(model_colors[0]);
+        else
+          msg.colors.push_back(model_colors[m+1]);
       }
       markers.markers.push_back(msg);
     }

@@ -58,6 +58,12 @@ public:
   bool set(const std::string name, double value);
 
   /**
+   *  \brief Set the values for a single absolute parameter.
+   *  \param name The name of the joint, e.g. "shoulder_pan_joint"
+   */
+  bool setAbsolute(const std::string name, double value);
+
+  /**
    *  \brief Set the values for a frame.
    *  \param name The name of the fixed joint, e.g. "head_camera_rgb_joint"
    */
@@ -94,6 +100,9 @@ public:
   /** \brief Get all the current offsets as a YAML */
   std::string getOffsetYAML();
 
+  /** \brief Get all the absolute calibration values as a YAML */
+  std::string getAbsoluteYAML();
+
   /** \brief Update the urdf with the new offsets */
   std::string updateURDF(const std::string& urdf);
 
@@ -107,6 +116,9 @@ private:
 
   // Values of parameters from last update
   std::vector<double> parameter_offsets_;
+
+  // Values of parameters from last update
+  std::vector<double> parameter_absolute_;
 
   // Number of params being calibrated
   size_t num_free_params_;

@@ -53,12 +53,14 @@ bool CalibrationOffsetParser::add(const std::string name)
       // Remove the non-free-param version
       parameter_names_.erase(parameter_names_.begin() + i);
       parameter_offsets_.erase(parameter_offsets_.begin() + i);
+      parameter_absolute_.erase(parameter_absolute_.begin() + i);
     }
   }
 
   // Add the parameter at end of current free params
   parameter_names_.insert(parameter_names_.begin() + num_free_params_, name);
   parameter_offsets_.insert(parameter_offsets_.begin() + num_free_params_, value);
+  parameter_absolute_.insert(parameter_absolute_.begin() + num_free_params_, value);
   ++num_free_params_;
   return true;
 }
@@ -95,6 +97,19 @@ bool CalibrationOffsetParser::set(const std::string name, double value)
     if (parameter_names_[i] == name)
     {
       parameter_offsets_[i] = value;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool CalibrationOffsetParser::setAbsolute(const std::string name, double value)
+{
+  for (size_t i = 0; i < num_free_params_; ++i)
+  {
+    if (parameter_names_[i] == name)
+    {
+      parameter_absolute_[i] = value;
       return true;
     }
   }
@@ -217,6 +232,16 @@ std::string CalibrationOffsetParser::getOffsetYAML()
   return ss.str();
 }
 
+std::string CalibrationOffsetParser::getAbsoluteYAML()
+{
+  std::stringstream ss;
+  for (size_t i = 0; i < parameter_names_.size(); ++i)
+  {
+    ss << parameter_names_[i] << ": " << parameter_absolute_[i] << std::endl;
+  }
+  return ss.str();
+}
+
 std::string CalibrationOffsetParser::updateURDF(const std::string &urdf)
 {
   const double precision = 8;
@@ -252,6 +277,7 @@ std::string CalibrationOffsetParser::updateURDF(const std::string &urdf)
           {
             offset += double(boost::lexical_cast<double>(rising_position_str));
             calibration_xml->SetDoubleAttribute("rising", offset);
+            setAbsolute(name, offset);
           }
           catch (boost::bad_lexical_cast &e)
           {
@@ -260,7 +286,24 @@ std::string CalibrationOffsetParser::updateURDF(const std::string &urdf)
         }
         else
         {
+          const char * falling_position_str = calibration_xml->Attribute("falling");
+          if (falling_position_str != NULL)
+          {
+            try
+            {
+              offset += double(boost::lexical_cast<double>(falling_position_str));
+              calibration_xml->SetDoubleAttribute("falling", offset);
+              setAbsolute(name, offset);
+            }
+            catch (boost::bad_lexical_cast &e)
+            {
+              // TODO: error
+            }
+          }
+          else
+          {
           // TODO: error
+          }
         }
       }
       else

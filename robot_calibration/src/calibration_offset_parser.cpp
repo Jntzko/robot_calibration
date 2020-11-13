@@ -260,6 +260,19 @@ std::string CalibrationOffsetParser::updateURDF(const std::string &urdf)
         }
         else
         {
+          const char * falling_position_str = calibration_xml->Attribute("falling");
+          if (falling_position_str != NULL)
+          {
+            try
+            {
+              offset += double(boost::lexical_cast<double>(falling_position_str));
+              calibration_xml->SetDoubleAttribute("falling", offset);
+            }
+            catch (boost::bad_lexical_cast &e)
+            {
+              // TODO: error
+            }
+          }
           // TODO: error
         }
       }

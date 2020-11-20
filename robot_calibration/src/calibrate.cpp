@@ -363,6 +363,19 @@ int main(int argc, char** argv)
     file.close();
   }
 
+  // Output the calibration yaml with absolute values
+  {
+    std::stringstream yaml_name;
+    yaml_name << "/tmp/calibration_absolute_" << datecode << ".yaml";
+    std::ofstream file;
+    file.open(yaml_name.str().c_str());
+    file << opt.getOffsets()->getAbsoluteOffsetsYAML();
+    file << "depth_info: depth_" << datecode << ".yaml" << std::endl;
+    file << "rgb_info: rgb_" << datecode << ".yaml" << std::endl;
+    file << "urdf: calibrated_" << datecode << ".urdf" << std::endl;
+    file.close();
+  }
+
   ROS_INFO("Done calibrating");
 
   return 0;

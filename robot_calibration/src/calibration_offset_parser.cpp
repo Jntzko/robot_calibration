@@ -53,12 +53,14 @@ bool CalibrationOffsetParser::add(const std::string name)
       // Remove the non-free-param version
       parameter_names_.erase(parameter_names_.begin() + i);
       parameter_offsets_.erase(parameter_offsets_.begin() + i);
+      parameter_absolute_offsets_.erase(parameter_absolute_offsets_.begin() + i);
     }
   }
 
   // Add the parameter at end of current free params
   parameter_names_.insert(parameter_names_.begin() + num_free_params_, name);
   parameter_offsets_.insert(parameter_offsets_.begin() + num_free_params_, value);
+  parameter_absolute_offsets_.insert(parameter_absolute_offsets_.begin() + num_free_params_, value);
   ++num_free_params_;
   return true;
 }
@@ -101,6 +103,19 @@ bool CalibrationOffsetParser::set(const std::string name, double value)
   return false;
 }
 
+bool CalibrationOffsetParser::setAbsoluteOffset(const std::string name, double value)
+{
+  for (size_t i = 0; i < num_free_params_; ++i)
+  {
+    if (parameter_names_[i] == name)
+    {
+      parameter_absolute_offsets_[i] = value;
+      return true;
+    }
+  }
+  return false;
+}
+
 bool CalibrationOffsetParser::setFrame(
     const std::string name,
     double x, double y, double z,
@@ -121,6 +136,29 @@ bool CalibrationOffsetParser::setFrame(
 
   return true;
 }
+
+bool CalibrationOffsetParser::setAbsoluteFrame(
+    const std::string name,
+    double x, double y, double z,
+    double roll, double pitch, double yaw)
+{
+  // Get axis-magnitude
+  double a, b, c;
+  KDL::Rotation r = KDL::Rotation::RPY(roll, pitch, yaw);
+  axis_magnitude_from_rotation(r, a, b, c);
+
+
+  // Set values
+  setAbsoluteOffset(std::string(name).append("_x"), x);
+  setAbsoluteOffset(std::string(name).append("_y"), y);
+  setAbsoluteOffset(std::string(name).append("_z"), z);
+  setAbsoluteOffset(std::string(name).append("_a"), a);
+  setAbsoluteOffset(std::string(name).append("_b"), b);
+  setAbsoluteOffset(std::string(name).append("_c"), c);
+
+  return true;
+}
+
 
 bool CalibrationOffsetParser::initialize(double* free_params)
 {
@@ -217,6 +255,16 @@ std::string CalibrationOffsetParser::getOffsetYAML()
   return ss.str();
 }
 
+std::string CalibrationOffsetParser::getAbsoluteOffsetsYAML()
+{
+  std::stringstream ss;
+  for (size_t i = 0; i < parameter_names_.size(); ++i)
+  {
+    ss << parameter_names_[i] << ": " << parameter_absolute_offsets_[i] << std::endl;
+  }
+  return ss.str();
+}
+
 std::string CalibrationOffsetParser::updateURDF(const std::string &urdf)
 {
   const double precision = 8;
@@ -252,6 +300,7 @@ std::string CalibrationOffsetParser::updateURDF(const std::string &urdf)
           {
             offset += double(boost::lexical_cast<double>(rising_position_str));
             calibration_xml->SetDoubleAttribute("rising", offset);
+            setAbsoluteOffset(name, offset);
           }
           catch (boost::bad_lexical_cast &e)
           {
@@ -267,6 +316,7 @@ std::string CalibrationOffsetParser::updateURDF(const std::string &urdf)
             {
               offset += double(boost::lexical_cast<double>(falling_position_str));
               calibration_xml->SetDoubleAttribute("falling", offset);
+              setAbsoluteOffset(name, offset);
             }
             catch (boost::bad_lexical_cast &e)
             {
@@ -351,6 +401,7 @@ std::string CalibrationOffsetParser::updateURDF(const std::string &urdf)
         // Update xml
         origin_xml->SetAttribute("xyz", xyz_ss.str());
         origin_xml->SetAttribute("rpy", rpy_ss.str());
+
       }
       else
       {
@@ -385,6 +436,8 @@ std::string CalibrationOffsetParser::updateURDF(const std::string &urdf)
         TiXmlNode * origin = origin_xml->Clone();
         joint_xml->InsertEndChild(*origin);
       }
+      // Update absulute parameters
+      setAbsoluteFrame(name, xyz[0], xyz[1], xyz[2], rpy[0], rpy[1], rpy[2]);
     }
   }
 
